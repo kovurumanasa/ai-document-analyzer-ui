@@ -1,103 +1,174 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import React, { useState } from 'react'
+import AgenticView from '../components/AgenticView'
+import ChatInterface from '../components/ChatInterface'
+import ToolPanel from '../components/ToolPanel'
+
+export default function AIAgentOS() {
+  const [steps, setSteps] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [activeView, setActiveView] = useState<'reasoning' | 'tools'>('reasoning')
+
+  const handleUserInput = async (input: string, files?: File[]) => {
+    if (!input.trim() && (!files || files.length === 0)) return
+    
+    setIsProcessing(true)
+    setSteps([])
+    setActiveView('reasoning') // Switch to reasoning view when processing starts
+    
+    const fileText = files && files.length > 0 ? ` [${files.length} file(s) attached]` : ''
+    setMessages(prev => [...prev, { 
+      type: 'user', 
+      content: input + fileText
+    }])
+
+    try {
+      const formData = new FormData()
+      formData.append('input', input)
+      
+      if (files) {
+        files.forEach((file, index) => {
+          formData.append(`file-${index}`, file)
+        })
+        formData.append('fileCount', files.length.toString())
+      }
+
+      const response = await fetch('/api/process', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to process request')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      
+      while (true) {
+        const { done, value } = await reader!.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const msg = JSON.parse(line.slice(6))
+              
+              if (msg.type === 'step-update') {
+                setSteps(prev => {
+                  const existing = prev.findIndex(s => s.id === msg.data.id)
+                  if (existing >= 0) {
+                    const updated = [...prev]
+                    updated[existing] = msg.data
+                    return updated
+                  }
+                  return [...prev, msg.data]
+                })
+              } else if (msg.type === 'complete') {
+                setMessages(prev => [...prev, { 
+                  type: 'assistant', 
+                  content: msg.data 
+                }])
+                setIsProcessing(false)
+                return
+              } else if (msg.type === 'error') {
+                setMessages(prev => [...prev, { 
+                  type: 'error', 
+                  content: msg.data 
+                }])
+                setIsProcessing(false)
+                return
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+    } catch (error) {
+      setMessages(prev => [...prev, { 
+        type: 'error', 
+        content: `Error: ${error.message}` 
+      }])
+      setIsProcessing(false)
+    }
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            AI Document Analysis OS
+          </h1>
+          <p className="text-lg text-gray-600">
+            Professional AI-powered document analysis with integrated tool suite
+          </p>
+        </div> */}
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Chat Interface */}
+          <div className="lg:col-span-1">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">
+              Chat & Upload Interface
+            </h2>
+            <ChatInterface 
+              messages={messages}
+              onSendMessage={handleUserInput}
+              isProcessing={isProcessing}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+          
+          {/* Right Column - Agent View and Tools */}
+          <div className="lg:col-span-2">
+            {/* Tab Navigation */}
+            <div className="mb-4">
+              <nav className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setActiveView('reasoning')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    activeView === 'reasoning'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Agent Reasoning
+                  {steps.length > 0 && (
+                    <span className="ml-2 bg-blue-100 text-blue-600 px-2 py-1 rounded-full text-xs">
+                      {steps.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveView('tools')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    activeView === 'tools'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Tools Panel
+                </button>
+              </nav>
+            </div>
+
+            {/* Tab Content */}
+            {activeView === 'reasoning' ? (
+              <AgenticView 
+                steps={steps}
+                isProcessing={isProcessing}
+              />
+            ) : (
+              <ToolPanel />
+            )}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
-  );
+  )
 }
