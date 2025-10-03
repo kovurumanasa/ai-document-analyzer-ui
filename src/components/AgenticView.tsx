@@ -189,7 +189,7 @@ export default function AgenticView({ steps, isProcessing }: AgenticViewProps) {
 
   const renderToolContent = (tool: EmbeddedTool) => {
     const config = toolConfigs[tool.toolType as keyof typeof toolConfigs]
-    
+    console.log(tool.data,'lllllllllllllllllllllllllll')
     switch (tool.toolType) {
       case 'pdf-parser':
         return (
@@ -212,10 +212,9 @@ export default function AgenticView({ steps, isProcessing }: AgenticViewProps) {
       case 'document-analyzer':
         return (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-gray-600">Entities:</span> <span className="font-medium">{tool.data.entitiesFound}</span></div>
-              <div><span className="text-gray-600">Topics:</span> <span className="font-medium">{tool.data.topicsIdentified}</span></div>
-              <div><span className="text-gray-600">Risk Indicators:</span> <span className="font-medium text-red-600">{tool.data.riskIndicators}</span></div>
+            <div className="grid  text-sm">
+              <div><span className="font-medium">Summary:</span> <span className="text-gray-600">{tool.data.analysisResults.summary}</span></div>
+              <div><span className="font-medium">Recommendations:</span> <span className="text-gray-600">{tool.data.analysisResults.recommendations}</span></div>
             </div>
           </div>
         )
@@ -225,9 +224,9 @@ export default function AgenticView({ steps, isProcessing }: AgenticViewProps) {
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-4 text-sm">
-              <div><span className="text-gray-600">Standards Checked:</span> <span className="font-medium">{tool.data.standardsChecked}</span></div>
-              <div><span className="text-gray-600">Overall Status:</span> <span className="font-medium text-green-600">{tool.data.overallStatus}</span></div>
-              <div><span className="text-gray-600">Actions:</span> <span className="font-medium">{tool.data.recommendations}</span></div>
+              <div><span className="text-gray-600">Standards Checked:</span> <span className="font-medium">{tool.data.complianceResults.summary.compliant}</span></div>
+              <div><span className="text-gray-600">Overall Status:</span> <span className="font-medium text-green-600">{tool.data.complianceResults.summary.overallStatus}</span></div>
+              <div><span className="text-gray-600">Actions:</span> <span className="font-medium">{tool.data.complianceResults.recommendations[0].action}</span></div>
             </div>
           </div>
         )
